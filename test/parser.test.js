@@ -160,3 +160,51 @@ test('frontmatter is tolerated with CRLF line endings', () => {
   const c = '---\r\ntags: [win]\r\n---\r\nBody #extra';
   assert.deepEqual(extractTags(c).sort(), ['extra', 'win']);
 });
+
+// ── Async scanning (Issue #1: no synchronous fs in the scan path) ──
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { listMdFilesAsync, scanVaultAsync, parseVaultAsync } = require('../lib/parser');
+
+function makeTempVault() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odw-test-'));
+  fs.writeFileSync(path.join(dir, 'a.md'), '# A\n[[b]] #x');
+  fs.mkdirSync(path.join(dir, 'sub'));
+  fs.writeFileSync(path.join(dir, 'sub', 'b.md'), '# B\nbody');
+  fs.mkdirSync(path.join(dir, '.obsidian'));        // dot-dir must be ignored
+  fs.writeFileSync(path.join(dir, '.obsidian', 'skip.md'), 'should not appear');
+  fs.writeFileSync(path.join(dir, 'notes.txt'), 'not markdown');
+  return dir;
+}
+
+test('listMdFilesAsync finds .md recursively and skips dot-dirs and non-md', async () => {
+  const dir = makeTempVault();
+  try {
+    const files = (await listMdFilesAsync(dir)).map(p => path.basename(p)).sort();
+    assert.deepEqual(files, ['a.md', 'b.md']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('scanVaultAsync reports progress and reaches done === total', async () => {
+  const dir = makeTempVault();
+  try {
+    const events = [];
+    const files = await scanVaultAsync(dir, 32, (done, total) => events.push([done, total]));
+    assert.equal(files.length, 2);
+    const last = events[events.length - 1];
+    assert.equal(last[0], last[1]);     // final event: done === total
+    assert.equal(last[1], 2);           // total counts only the 2 real notes
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('parseVaultAsync resolves links across folders', async () => {
+  const dir = makeTempVault();
+  try {
+    const g = await parseVaultAsync(dir);
+    assert.equal(g.nodes.length, 2);
+    assert.equal(g.links.length, 1);    // a.md -> sub/b.md
+    assert.equal(g.links[0].source, 'a.md');
+    assert.equal(g.links[0].target, 'sub/b.md');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

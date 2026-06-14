@@ -65,6 +65,7 @@ const statsEl       = document.getElementById('stats');
 const fileSearch    = document.getElementById('file-search');
 const searchResults = document.getElementById('search-results');
 const briefMsg      = document.getElementById('brief-msg');
+const parseProg     = document.getElementById('parse-progress');
 
 // ── Init ─────────────────────────────────────────────────────────
 async function init() {
@@ -1191,6 +1192,16 @@ document.getElementById('update-btn').addEventListener('click', async () => {
   } else {
     toast(`Up to date (v${upd.current})`);
   }
+});
+
+// ── Parse progress (only shown for large vaults to avoid flashing) ─
+api.onParseProgress(({ done, total }) => {
+  if (!total || total < 150 || done >= total) {
+    parseProg.classList.remove('show');
+    return;
+  }
+  parseProg.textContent = `Parsing vault… ${done} / ${total}`;
+  parseProg.classList.add('show');
 });
 
 // ── Live refresh on vault changes ─────────────────────────────────

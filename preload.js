@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFullscreen:     ()  => ipcRenderer.invoke('get-fullscreen'),
   onFullscreenChange:(cb)=> ipcRenderer.on('fullscreen-changed', (_, v) => cb(v)),
   onVaultChanged:    (cb)=> ipcRenderer.on('vault-changed', () => cb()),
+  onParseProgress:   (cb)=> ipcRenderer.on('parse-progress', (_, p) => cb(p)),
   exportPng:         (d) => ipcRenderer.invoke('export-png', d),
   checkUpdate:       ()  => ipcRenderer.invoke('check-update'),
   openUrl:           (u) => ipcRenderer.invoke('open-url', u),

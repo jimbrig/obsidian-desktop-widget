@@ -127,7 +127,21 @@ function saveGraphCacheDebounced() {
   }, 1500);
 }
 
-async function fullParse() {
+// Throttled parse-progress emitter → renderer (always sends the final
+// done===total event so the indicator can clear).
+function makeProgressEmitter() {
+  let last = 0;
+  return (done, total) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const now = Date.now();
+    if (done === total || now - last > 120) {
+      last = now;
+      mainWindow.webContents.send('parse-progress', { done, total });
+    }
+  };
+}
+
+async function fullParse(onProgress = null) {
   if (!vaultPath) return null;
   if (parseInFlight) return parseInFlight;
   parseInFlight = (async () => {
@@ -135,8 +149,8 @@ async function fullParse() {
     // Reuse unchanged nodes (mtime match) — only changed files are read.
     const known = new Map((graphState?.nodes || []).map(n => [n.id, n]));
     const nodes = known.size
-      ? await scanVaultIncrementalAsync(vaultPath, known)
-      : buildGraph(await scanVaultAsync(vaultPath)).nodes;
+      ? await scanVaultIncrementalAsync(vaultPath, known, 32, onProgress)
+      : buildGraph(await scanVaultAsync(vaultPath, 32, onProgress)).nodes;
     const g = { nodes, links: resolveLinks(nodes) };
     log.info(`vault parsed: ${g.nodes.length} notes, ${g.links.length} links in ${Date.now() - t0}ms (${known.size ? 'incremental' : 'full'})`);
     return g;
@@ -251,6 +265,7 @@ ipcMain.handle('load-graph', async () => {
   if (cached) {
     graphState = cached;
     const cachedSig = graphSignature(cached);
+    // Background reparse — progress stays silent (graph already on screen).
     fullParse().then(fresh => {
       if (!fresh) return;
       graphState = fresh;
@@ -260,7 +275,9 @@ ipcMain.handle('load-graph', async () => {
     return graphState;
   }
 
-  graphState = await fullParse();
+  // Cold start, no cache — this is the blocking-feel case the progress
+  // indicator is for (large vaults).
+  graphState = await fullParse(makeProgressEmitter());
   saveGraphCacheDebounced();
   return graphState;
 });

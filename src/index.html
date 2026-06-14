@@ -474,6 +474,14 @@ select.panel-select option { background:#16161e; color:#ddd; }
   white-space:nowrap; backdrop-filter:blur(12px);
 }
 #brief-msg.show { opacity:1; }
+#parse-progress {
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  background:rgba(30,20,50,0.96); border:1px solid var(--border);
+  border-radius:6px; padding:6px 16px; font-size:11px; color:var(--text);
+  z-index:600; pointer-events:none; opacity:0; transition:opacity 0.2s;
+  white-space:nowrap; backdrop-filter:blur(12px);
+}
+#parse-progress.show { opacity:1; }
 </style>
 </head>
 <body>
@@ -725,6 +733,9 @@ select.panel-select option { background:#16161e; color:#ddd; }
 
 <!-- ── Brief status toast ────────────────────────────────────────── -->
 <div id="brief-msg"></div>
+
+<!-- ── Parse progress (large vaults) ─────────────────────────────── -->
+<div id="parse-progress"></div>
 
 <script src="../node_modules/d3/dist/d3.min.js"></script>
 <script src="renderer.js"></script>
